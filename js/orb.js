@@ -4,12 +4,14 @@ class Orb {
         this.ctx = this.canvas.getContext('2d');
         this.particles = [];
         this.plasmaParticles = [];
+        this.energyRings = [];
         this.hue = 180;
         this.baseHue = 180;
         this.brightness = 50;
         this.radius = 150;
-        this.particleCount = 300; // Increased for more detail
-        this.plasmaCount = 80; // Increased for more fluid effect
+        this.particleCount = 500;
+        this.plasmaCount = 100;
+        this.ringCount = 3;
         this.pulseFactor = 1;
         this.pulseSpeed = 0.02;
         this.movementIntensity = 0.5;
@@ -18,14 +20,12 @@ class Orb {
         this.centerZ = 0;
         this.perspective = 600;
 
-        // Enhanced rotation parameters
         this.rotationX = 0;
         this.rotationY = 0;
         this.rotationSpeedX = 0.1;
         this.rotationSpeedY = 0.1;
         this.baseRotationSpeed = 0.1;
 
-        // Mood parameters
         this.targetHue = this.hue;
         this.targetBrightness = this.brightness;
         this.currentIntensity = 0.5;
@@ -35,6 +35,7 @@ class Orb {
         window.addEventListener('resize', () => this.resize());
 
         this.createParticles();
+        this.createEnergyRings();
         this.animate();
     }
 
@@ -63,8 +64,30 @@ class Orb {
         this.pulseSpeed = value;
     }
 
+    createEnergyRings() {
+        this.energyRings = [];
+        for (let i = 0; i < this.ringCount; i++) {
+            this.energyRings.push({
+                radius: this.radius * (1.2 + i * 0.2),
+                rotation: Math.random() * Math.PI * 2,
+                speed: 0.002 + Math.random() * 0.003,
+                particles: []
+            });
+
+            const particlesPerRing = 180;
+            for (let j = 0; j < particlesPerRing; j++) {
+                const angle = (j / particlesPerRing) * Math.PI * 2;
+                this.energyRings[i].particles.push({
+                    angle: angle,
+                    radius: this.energyRings[i].radius + (Math.random() - 0.5) * 20,
+                    size: 2 + Math.random() * 3,
+                    pulseOffset: Math.random() * Math.PI * 2
+                });
+            }
+        }
+    }
+
     createParticles() {
-        // Core orb particles
         this.particles = [];
         for (let i = 0; i < this.particleCount; i++) {
             const phi = Math.acos(-1 + (2 * i) / this.particleCount);
@@ -84,14 +107,13 @@ class Orb {
                 vx: 0,
                 vy: 0,
                 vz: 0,
-                baseRadius: 2 + Math.random() * 2,
+                baseRadius: 1.5 + Math.random() * 2,
                 theta: theta,
                 phi: phi,
                 speed: 0.01 + Math.random() * 0.02
             });
         }
 
-        // Plasma effect particles
         this.plasmaParticles = [];
         for (let i = 0; i < this.plasmaCount; i++) {
             const phi = Math.acos(-1 + (2 * i) / this.plasmaCount);
@@ -103,9 +125,9 @@ class Orb {
                 distance: this.radius * 1.2 + Math.random() * 50,
                 originalDistance: this.radius * 1.2 + Math.random() * 50,
                 speed: 0.02 + Math.random() * 0.03,
-                size: 15 + Math.random() * 25,
+                size: 20 + Math.random() * 30,
                 hueOffset: Math.random() * 60 - 30,
-                opacity: 0.1 + Math.random() * 0.2
+                opacity: 0.15 + Math.random() * 0.25
             });
         }
     }
@@ -113,17 +135,10 @@ class Orb {
     updateMood(intensity = 0.5, sentiment = 0.5) {
         this.lastMoodUpdate = Date.now();
         this.currentIntensity = intensity;
-
-        // Map sentiment to hue
         this.targetHue = (this.baseHue + sentiment * 120) % 360;
-        
-        // Map intensity to brightness and movement
         this.targetBrightness = 40 + intensity * 60;
-        
-        // Update pulse parameters
         this.pulseSpeed = 0.02 + intensity * 0.03;
         
-        // Update rotation speeds based on intensity
         const baseSpeed = this.baseRotationSpeed;
         const maxSpeed = baseSpeed * 3;
         
@@ -132,13 +147,11 @@ class Orb {
     }
 
     project(x, y, z) {
-        // Apply rotation around X axis
         let cosX = Math.cos(this.rotationX);
         let sinX = Math.sin(this.rotationX);
         let y1 = y * cosX - z * sinX;
         let z1 = y * sinX + z * cosX;
 
-        // Apply rotation around Y axis
         let cosY = Math.cos(this.rotationY);
         let sinY = Math.sin(this.rotationY);
         let x1 = x * cosY + z1 * sinY;
@@ -155,12 +168,10 @@ class Orb {
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Smooth color transitions
         const timeDelta = (Date.now() - this.lastMoodUpdate) / 1000;
         this.hue += (this.targetHue - this.hue) * Math.min(1, timeDelta * 2);
         this.brightness += (this.targetBrightness - this.brightness) * Math.min(1, timeDelta * 2);
         
-        // Enhanced glowing background
         const gradient = this.ctx.createRadialGradient(
             this.centerX, this.centerY, 0,
             this.centerX, this.centerY, this.radius * 4
@@ -170,6 +181,28 @@ class Orb {
         gradient.addColorStop(1, 'transparent');
         this.ctx.fillStyle = gradient;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Draw energy rings
+        this.energyRings.forEach((ring, index) => {
+            ring.rotation += ring.speed * this.currentIntensity;
+            
+            ring.particles.forEach(particle => {
+                const time = Date.now() * 0.001;
+                const pulseScale = 1 + Math.sin(time * this.pulseSpeed + particle.pulseOffset) * 0.1;
+                const radius = particle.radius * pulseScale;
+                
+                const x = this.centerX + Math.cos(particle.angle + ring.rotation) * radius;
+                const y = this.centerY + Math.sin(particle.angle + ring.rotation) * radius;
+                
+                const distanceScale = 1 - (index / this.ringCount) * 0.3;
+                const size = particle.size * distanceScale * (1 + Math.sin(time + particle.angle) * 0.3);
+                
+                this.ctx.beginPath();
+                this.ctx.fillStyle = `hsla(${this.hue}, 100%, ${this.brightness}%, ${0.4 * distanceScale})`;
+                this.ctx.arc(x, y, size, 0, Math.PI * 2);
+                this.ctx.fill();
+            });
+        });
 
         // Draw plasma effect
         this.plasmaParticles.forEach(plasma => {
@@ -197,15 +230,13 @@ class Orb {
             this.ctx.fill();
         });
 
-        // Update and draw core particles
+        // Draw core particles
         this.particles.forEach(particle => {
-            // Apply forces based on mood intensity
             const force = 0.1 * this.currentIntensity;
             particle.vx += (Math.random() - 0.5) * force;
             particle.vy += (Math.random() - 0.5) * force;
             particle.vz += (Math.random() - 0.5) * force;
 
-            // Apply restoring force
             const dx = particle.ox - particle.x;
             const dy = particle.oy - particle.y;
             const dz = particle.oz - particle.z;
@@ -214,17 +245,14 @@ class Orb {
             particle.vy += dy * 0.03;
             particle.vz += dz * 0.03;
 
-            // Apply damping
             particle.vx *= 0.9;
             particle.vy *= 0.9;
             particle.vz *= 0.9;
 
-            // Update positions
             particle.x += particle.vx;
             particle.y += particle.vy;
             particle.z += particle.vz;
 
-            // Project 3D to 2D
             const pulseMagnitude = 0.1 + this.currentIntensity * 0.2;
             const pulseOffset = Math.sin(Date.now() * this.pulseSpeed) * pulseMagnitude;
             const proj = this.project(
@@ -233,7 +261,6 @@ class Orb {
                 particle.z * (1 + pulseOffset)
             );
 
-            // Size and brightness based on depth and mood
             const size = particle.baseRadius * proj.scale * (1 + pulseOffset);
             const brightness = this.brightness * proj.scale;
             const opacity = 0.6 + 0.4 * proj.scale;
@@ -246,7 +273,6 @@ class Orb {
             this.ctx.fill();
         });
 
-        // Update rotation
         this.rotationX += this.rotationSpeedX * this.movementIntensity;
         this.rotationY += this.rotationSpeedY * this.movementIntensity;
     }
